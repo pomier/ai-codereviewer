@@ -121,6 +121,30 @@ ${chunk.changes
 `;
 }
 
+/**
+ * Checks if the given model supports JSON object mode.
+ *
+ * The function determines if a model supports JSON object mode by checking
+ * if the model's name includes any of the prefixes specified in the
+ * `supportedJsonObjectModelsPrefix` array. The supported models include
+ * variants of GPT-4-turbo, GPT-3.5-turbo, and GPT-4o.
+ *
+ * @param {ChatCompletionCreateParamsNonStreaming["model"]} model - The name of the model to check.
+ * @returns {boolean} - Returns true if the model supports JSON object mode, false otherwise.
+ */
+const isJsonObjectSupportedModel = (
+  model: ChatCompletionCreateParamsNonStreaming["model"]
+): boolean => {
+  //Model Qian supported by JsonObject, reference https://platform.openai.com/docs/guides/text-generation/json-mode
+  const supportedJsonObjectModelsPrefix = [
+    "gpt-4-turbo",
+    "gpt-3.5-turbo",
+    "gpt-4o",
+  ];
+
+  return supportedJsonObjectModelsPrefix.some((item) => model.includes(item));
+};
+
 async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
@@ -132,7 +156,9 @@ async function getAIResponse(prompt: string): Promise<Array<{
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
-    response_format: { type: "json_object" },
+    ...(isJsonObjectSupportedModel(OPENAI_API_MODEL)
+      ? { response_format: { type: "json_object" } }
+      : {}),
   };
 
   try {
