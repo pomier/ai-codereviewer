@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
+import { ChatCompletionCreateParamsNonStreaming } from "openai/resources";
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY: string = core.getInput("OPENAI_API_KEY");
@@ -131,15 +132,12 @@ async function getAIResponse(prompt: string): Promise<Array<{
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    response_format: { type: "json_object" },
   };
 
   try {
     const response = await openai.chat.completions.create({
-      ...queryConfig,
-      // return JSON if the model supports it:
-      ...(OPENAI_API_MODEL === "gpt-4-1106-preview"
-        ? { response_format: { type: "json_object" } }
-        : {}),
+      ...(queryConfig as ChatCompletionCreateParamsNonStreaming),
       messages: [
         {
           role: "system",
@@ -148,8 +146,18 @@ async function getAIResponse(prompt: string): Promise<Array<{
       ],
     });
 
-    const res = response.choices[0].message?.content?.trim() || "{}";
-    return JSON.parse(res).reviews;
+    const rawContent = response.choices[0].message?.content || "";
+
+    const startIndex = rawContent.indexOf("{");
+    const endIndex = rawContent.lastIndexOf("}") + 1;
+
+    if (startIndex === -1 || endIndex === -1) {
+      throw new Error("No valid JSON found in response content.");
+    }
+
+    const jsonString = rawContent.substring(startIndex, endIndex).trim();
+
+    return JSON.parse(jsonString).reviews;
   } catch (error) {
     console.error("Error:", error);
     return null;
