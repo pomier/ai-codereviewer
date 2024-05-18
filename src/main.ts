@@ -135,7 +135,7 @@ ${chunk.changes
 const isJsonObjectSupportedModel = (
   model: ChatCompletionCreateParamsNonStreaming["model"]
 ): boolean => {
-  //Model Qian supported by JsonObject, reference https://platform.openai.com/docs/guides/text-generation/json-mode
+  // Models supported by JsonObject, reference https://platform.openai.com/docs/guides/text-generation/json-mode
   const supportedJsonObjectModelsPrefix = [
     "gpt-4-turbo",
     "gpt-3.5-turbo",
