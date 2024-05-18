@@ -147,7 +147,6 @@ async function getAIResponse(prompt: string): Promise<Array<{
     });
 
     const rawContent = response.choices[0].message?.content || "";
-    console.log("rawContent", rawContent);
 
     const startIndex = rawContent.indexOf("{");
     const endIndex = rawContent.lastIndexOf("}") + 1;
@@ -157,7 +156,6 @@ async function getAIResponse(prompt: string): Promise<Array<{
     }
 
     const jsonString = rawContent.substring(startIndex, endIndex).trim();
-    console.log("jsonString", jsonString);
 
     return JSON.parse(jsonString).reviews;
   } catch (error) {

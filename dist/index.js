@@ -144,7 +144,7 @@ ${chunk.changes
 `;
 }
 function getAIResponse(prompt) {
-    var _a, _b;
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         const queryConfig = {
             model: OPENAI_API_MODEL,
@@ -153,18 +153,23 @@ function getAIResponse(prompt) {
             top_p: 1,
             frequency_penalty: 0,
             presence_penalty: 0,
+            response_format: { type: "json_object" },
         };
         try {
-            const response = yield openai.chat.completions.create(Object.assign(Object.assign(Object.assign({}, queryConfig), (OPENAI_API_MODEL === "gpt-4-1106-preview"
-                ? { response_format: { type: "json_object" } }
-                : {})), { messages: [
+            const response = yield openai.chat.completions.create(Object.assign(Object.assign({}, queryConfig), { messages: [
                     {
                         role: "system",
                         content: prompt,
                     },
                 ] }));
-            const res = ((_b = (_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) === null || _b === void 0 ? void 0 : _b.trim()) || "{}";
-            return JSON.parse(res).reviews;
+            const rawContent = ((_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) || "";
+            const startIndex = rawContent.indexOf("{");
+            const endIndex = rawContent.lastIndexOf("}") + 1;
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error("No valid JSON found in response content.");
+            }
+            const jsonString = rawContent.substring(startIndex, endIndex).trim();
+            return JSON.parse(jsonString).reviews;
         }
         catch (error) {
             console.error("Error:", error);
