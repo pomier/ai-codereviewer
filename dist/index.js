@@ -143,28 +143,47 @@ ${chunk.changes
 \`\`\`
 `;
 }
+/**
+ * Checks if the given model supports JSON object mode.
+ *
+ * The function determines if a model supports JSON object mode by checking
+ * if the model's name includes any of the prefixes specified in the
+ * `supportedJsonObjectModelsPrefix` array. The supported models include
+ * variants of GPT-4-turbo, GPT-3.5-turbo, and GPT-4o.
+ *
+ * @param {ChatCompletionCreateParamsNonStreaming["model"]} model - The name of the model to check.
+ * @returns {boolean} - Returns true if the model supports JSON object mode, false otherwise.
+ */
+const isJsonObjectSupportedModel = (model) => {
+    //Model Qian supported by JsonObject, reference https://platform.openai.com/docs/guides/text-generation/json-mode
+    const supportedJsonObjectModelsPrefix = [
+        "gpt-4-turbo",
+        "gpt-3.5-turbo",
+        "gpt-4o",
+    ];
+    return supportedJsonObjectModelsPrefix.some((item) => model.includes(item));
+};
 function getAIResponse(prompt) {
-    var _a, _b;
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
-        const queryConfig = {
-            model: OPENAI_API_MODEL,
-            temperature: 0.2,
-            max_tokens: 700,
-            top_p: 1,
-            frequency_penalty: 0,
-            presence_penalty: 0,
-        };
+        const queryConfig = Object.assign({ model: OPENAI_API_MODEL, temperature: 0.2, max_tokens: 700, top_p: 1, frequency_penalty: 0, presence_penalty: 0 }, (isJsonObjectSupportedModel(OPENAI_API_MODEL)
+            ? { response_format: { type: "json_object" } }
+            : {}));
         try {
-            const response = yield openai.chat.completions.create(Object.assign(Object.assign(Object.assign({}, queryConfig), (OPENAI_API_MODEL === "gpt-4-1106-preview"
-                ? { response_format: { type: "json_object" } }
-                : {})), { messages: [
+            const response = yield openai.chat.completions.create(Object.assign(Object.assign({}, queryConfig), { messages: [
                     {
                         role: "system",
                         content: prompt,
                     },
                 ] }));
-            const res = ((_b = (_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) === null || _b === void 0 ? void 0 : _b.trim()) || "{}";
-            return JSON.parse(res).reviews;
+            const rawContent = ((_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) || "";
+            const startIndex = rawContent.indexOf("{");
+            const endIndex = rawContent.lastIndexOf("}") + 1;
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error("No valid JSON found in response content.");
+            }
+            const jsonString = rawContent.substring(startIndex, endIndex).trim();
+            return JSON.parse(jsonString).reviews;
         }
         catch (error) {
             console.error("Error:", error);

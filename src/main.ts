@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
+import { ChatCompletionCreateParamsNonStreaming } from "openai/resources";
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY: string = core.getInput("OPENAI_API_KEY");
@@ -120,6 +121,30 @@ ${chunk.changes
 `;
 }
 
+/**
+ * Checks if the given model supports JSON object mode.
+ *
+ * The function determines if a model supports JSON object mode by checking
+ * if the model's name includes any of the prefixes specified in the
+ * `supportedJsonObjectModelsPrefix` array. The supported models include
+ * variants of GPT-4-turbo, GPT-3.5-turbo, and GPT-4o.
+ *
+ * @param {ChatCompletionCreateParamsNonStreaming["model"]} model - The name of the model to check.
+ * @returns {boolean} - Returns true if the model supports JSON object mode, false otherwise.
+ */
+const isJsonObjectSupportedModel = (
+  model: ChatCompletionCreateParamsNonStreaming["model"]
+): boolean => {
+  // Models supported by JsonObject, reference https://platform.openai.com/docs/guides/text-generation/json-mode
+  const supportedJsonObjectModelsPrefix = [
+    "gpt-4-turbo",
+    "gpt-3.5-turbo",
+    "gpt-4o",
+  ];
+
+  return supportedJsonObjectModelsPrefix.some((item) => model.includes(item));
+};
+
 async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
@@ -131,15 +156,14 @@ async function getAIResponse(prompt: string): Promise<Array<{
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    ...(isJsonObjectSupportedModel(OPENAI_API_MODEL)
+      ? { response_format: { type: "json_object" } }
+      : {}),
   };
 
   try {
     const response = await openai.chat.completions.create({
-      ...queryConfig,
-      // return JSON if the model supports it:
-      ...(OPENAI_API_MODEL === "gpt-4-1106-preview"
-        ? { response_format: { type: "json_object" } }
-        : {}),
+      ...(queryConfig as ChatCompletionCreateParamsNonStreaming),
       messages: [
         {
           role: "system",
@@ -148,8 +172,18 @@ async function getAIResponse(prompt: string): Promise<Array<{
       ],
     });
 
-    const res = response.choices[0].message?.content?.trim() || "{}";
-    return JSON.parse(res).reviews;
+    const rawContent = response.choices[0].message?.content || "";
+
+    const startIndex = rawContent.indexOf("{");
+    const endIndex = rawContent.lastIndexOf("}") + 1;
+
+    if (startIndex === -1 || endIndex === -1) {
+      throw new Error("No valid JSON found in response content.");
+    }
+
+    const jsonString = rawContent.substring(startIndex, endIndex).trim();
+
+    return JSON.parse(jsonString).reviews;
   } catch (error) {
     console.error("Error:", error);
     return null;
